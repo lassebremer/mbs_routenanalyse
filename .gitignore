@@ -1,0 +1,5 @@
+.env
+api_usage.json
+venv/
+__pycache__/
+*.pyc
