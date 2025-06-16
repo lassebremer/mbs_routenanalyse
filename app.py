@@ -24,6 +24,10 @@ app = Flask(__name__)
 config_name = os.environ.get('FLASK_ENV', 'default')
 app.config.from_object(config[config_name])
 
+# Sicherstellen, dass SECRET_KEY gesetzt ist
+if not app.config.get('SECRET_KEY'):
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production-12345')
+
 # API-Konfiguration aus App-Config
 API_KEY = app.config.get('MAPS_API_KEY')
 API_LIMITS = app.config.get('API_LIMITS')

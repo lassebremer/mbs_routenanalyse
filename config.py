@@ -1,11 +1,12 @@
 import os
+import secrets
 from datetime import timedelta
 
 class Config:
     """Basis-Konfiguration für die Flask-App."""
     
-    # Flask-Einstellungen
-    SECRET_KEY = os.environ.get('SECRET_KEY')
+    # Flask-Einstellungen - sicherer SECRET_KEY
+    SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
     
     # Google Maps API
     MAPS_API_KEY = os.environ.get('MAPS_API')
