@@ -494,41 +494,63 @@
             }
 
             initializeEventListeners() {
-                const locationInput = document.getElementById('locationInput');
-                const generateMapBtn = document.getElementById('generateMapBtn');
-                const exportExcelBtn = document.getElementById('exportExcelBtn');
-                
-                if (!locationInput || !generateMapBtn || !exportExcelBtn) {
-                    console.error('❌ Erforderliche DOM-Elemente nicht gefunden!');
-                    return;
-                }
-                
-                // KEIN AUTOCOMPLETE - nur Enter-Taste
-                locationInput.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
+                // Warten auf DOM-Elemente mit Retry-Mechanismus
+                const waitForElement = (id, maxRetries = 10) => {
+                    return new Promise((resolve, reject) => {
+                        let retries = 0;
+                        const checkElement = () => {
+                            const element = document.getElementById(id);
+                            if (element) {
+                                resolve(element);
+                            } else if (retries < maxRetries) {
+                                retries++;
+                                setTimeout(checkElement, 100);
+                            } else {
+                                reject(new Error(`Element mit ID '${id}' nicht gefunden nach ${maxRetries} Versuchen`));
+                            }
+                        };
+                        checkElement();
+                    });
+                };
+
+                // Haupt-Event-Listeners setzen
+                Promise.all([
+                    waitForElement('locationInput'),
+                    waitForElement('generateMapBtn'),
+                    waitForElement('exportExcelBtn')
+                ]).then(([locationInput, generateMapBtn, exportExcelBtn]) => {
+                    // KEIN AUTOCOMPLETE - nur Enter-Taste
+                    locationInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            this.generateMap();
+                        }
+                    });
+
+                    // Karte generieren
+                    generateMapBtn.addEventListener('click', () => {
                         this.generateMap();
-                    }
+                    });
+
+                    // Excel-Export
+                    exportExcelBtn.addEventListener('click', () => {
+                        this.exportToExcel();
+                    });
+
+                    console.log('✅ Haupt-Event-Listeners erfolgreich initialisiert');
+                }).catch(error => {
+                    console.error('❌ Fehler beim Initialisieren der Haupt-Event-Listeners:', error);
+                    this.showAlert('Fehler beim Laden der Benutzeroberfläche. Bitte Seite neu laden.', 'danger');
                 });
 
-                // Karte generieren
-                generateMapBtn.addEventListener('click', () => {
-                    this.generateMap();
-                });
-
-                // Excel-Export
-                exportExcelBtn.addEventListener('click', () => {
-                    this.exportToExcel();
-                });
-
-                // Suchbegriffe-Verwaltung
-                const addTermBtn = document.getElementById('addTermBtn');
-                const newTermInput = document.getElementById('newTermInput');
-                const selectAllBtn = document.getElementById('selectAllBtn');
-                const deselectAllBtn = document.getElementById('deselectAllBtn');
-                const resetTermsBtn = document.getElementById('resetTermsBtn');
-
-                if (addTermBtn && newTermInput) {
+                // Suchbegriffe-Event-Listeners (optional)
+                Promise.all([
+                    waitForElement('addTermBtn'),
+                    waitForElement('newTermInput'),
+                    waitForElement('selectAllBtn'),
+                    waitForElement('deselectAllBtn'),
+                    waitForElement('resetTermsBtn')
+                ]).then(([addTermBtn, newTermInput, selectAllBtn, deselectAllBtn, resetTermsBtn]) => {
                     addTermBtn.addEventListener('click', () => this.addSearchTerm());
                     newTermInput.addEventListener('keypress', (e) => {
                         if (e.key === 'Enter') {
@@ -536,11 +558,16 @@
                             this.addSearchTerm();
                         }
                     });
-                }
+                    
+                    selectAllBtn.addEventListener('click', () => this.selectAllTerms());
+                    deselectAllBtn.addEventListener('click', () => this.deselectAllTerms());
+                    resetTermsBtn.addEventListener('click', () => this.resetSearchTerms());
 
-                if (selectAllBtn) selectAllBtn.addEventListener('click', () => this.selectAllTerms());
-                if (deselectAllBtn) deselectAllBtn.addEventListener('click', () => this.deselectAllTerms());
-                if (resetTermsBtn) resetTermsBtn.addEventListener('click', () => this.resetSearchTerms());
+                    console.log('✅ Suchbegriffe-Event-Listeners erfolgreich initialisiert');
+                }).catch(error => {
+                    console.error('❌ Warnung: Suchbegriffe-Event-Listeners konnten nicht initialisiert werden:', error);
+                    // Nicht kritisch - App kann trotzdem funktionieren
+                });
             }
 
             async generateMap() {
@@ -578,23 +605,34 @@
                 `;
 
                 try {
-                    // Direkte Geocodierung
+                    // Direkte Geocodierung mit verbesserter Fehlerbehandlung
                     const geocodeResponse = await fetch('/api/geocode', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
                         body: JSON.stringify({ address: location })
                     });
 
+                    // Prüfen ob Response ok ist
+                    if (!geocodeResponse.ok) {
+                        const errorText = await geocodeResponse.text();
+                        console.error('Geocode API Error:', geocodeResponse.status, errorText);
+                        throw new Error(`Geocoding fehlgeschlagen (${geocodeResponse.status}): ${errorText}`);
+                    }
+
                     const geocodeData = await geocodeResponse.json();
+                    console.log('Geocode Response:', geocodeData);
                     
-                    if (geocodeData.status === 'OK') {
+                    if (geocodeData.status === 'OK' && geocodeData.lat && geocodeData.lng) {
                         this.currentLocation = {
                             lat: geocodeData.lat,
                             lng: geocodeData.lng,
-                            address: geocodeData.formatted_address
+                            address: geocodeData.formatted_address || location
                         };
                     } else {
-                        throw new Error('Standort nicht gefunden');
+                        throw new Error(geocodeData.error || `Standort nicht gefunden: ${geocodeData.status || 'Unbekannter Fehler'}`);
                     }
 
                     // Karte generieren

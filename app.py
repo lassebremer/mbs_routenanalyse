@@ -466,23 +466,47 @@ def index():
 @app.route('/api/geocode', methods=['POST'])
 def geocode():
     """API-Endpunkt für Geocoding (nur address)."""
-    if not API_KEY:
-        return jsonify({"error": "Kein API-Key verfügbar"}), 400
-    
-    data = request.get_json()
-    if not data or 'address' not in data:
-        return jsonify({"error": "Adresse erforderlich"}), 400
-    
-    # API-Kontingent prüfen
-    quota_ok, _, _ = check_api_quota("geocoding", 1)
-    if not quota_ok:
-        return jsonify({"error": "API-Limit erreicht"}), 429
-    
-    result = geocode_address(API_KEY, data['address'])
-    if result.get("status") == "OK":
-        record_api_usage("geocoding", 1)
-    
-    return jsonify(result)
+    try:
+        # API-Key prüfen
+        if not API_KEY:
+            return jsonify({"error": "Kein API-Key verfügbar", "status": "NO_API_KEY"}), 400
+        
+        # Request-Daten prüfen
+        if not request.is_json:
+            return jsonify({"error": "Content-Type muss application/json sein", "status": "INVALID_CONTENT_TYPE"}), 400
+            
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Leerer JSON-Body", "status": "EMPTY_JSON"}), 400
+            
+        if 'address' not in data or not data['address'].strip():
+            return jsonify({"error": "Adresse erforderlich", "status": "MISSING_ADDRESS"}), 400
+        
+        address = data['address'].strip()
+        
+        # API-Kontingent prüfen
+        quota_ok, current_usage, remaining = check_api_quota("geocoding", 1)
+        if not quota_ok:
+            return jsonify({
+                "error": f"API-Limit erreicht. Aktuelle Nutzung: {current_usage}, Verbleiband: {remaining}",
+                "status": "QUOTA_EXCEEDED"
+            }), 429
+        
+        # Geocoding durchführen
+        result = geocode_address(API_KEY, address)
+        
+        # API-Nutzung nur bei erfolgreichem Request aufzeichnen
+        if result.get("status") == "OK":
+            record_api_usage("geocoding", 1)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        # Unerwartete Fehler abfangen
+        return jsonify({
+            "error": f"Serverfehler beim Geocoding: {str(e)}",
+            "status": "SERVER_ERROR"
+        }), 500
 
 @app.route('/api/generate_map', methods=['POST'])
 def api_generate_map():
