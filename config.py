@@ -5,7 +5,7 @@ class Config:
     """Basis-Konfiguration für die Flask-App."""
     
     # Flask-Einstellungen
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
+    SECRET_KEY = os.environ.get('SECRET_KEY')
     
     # Google Maps API
     MAPS_API_KEY = os.environ.get('MAPS_API')
