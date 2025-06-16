@@ -34,9 +34,6 @@ API_LIMITS = app.config.get('API_LIMITS')
 USAGE_FILE = app.config.get('USAGE_FILE')
 SEARCH_TERMS = app.config.get('SEARCH_TERMS')
 
-# Globale Variable für gefundene Märkte (für Excel-Export)
-found_markets_data = []
-
 # Session-basierte Suchbegriffe (Default aus Config)
 def get_search_terms():
     """Gibt die aktuellen Suchbegriffe aus der Session zurück, oder die Standard-Begriffe."""
@@ -194,8 +191,8 @@ def find_places(api_key, lat, lng, radius, keyword):
 
 def generate_map(festival_lat, festival_lon, radius_km=40, route_radius_km=2, selected_terms=None):
     """Generiert die Karte mit Märkten und Routen - nur Märkte entlang der Anfahrtsrouten."""
-    global found_markets_data
-    found_markets_data = []  # Reset der gefundenen Märkte
+    from flask import session
+    session['found_markets_data'] = []  # Reset der gefundenen Märkte in Session
     
     # Verwende ausgewählte Suchbegriffe oder alle verfügbaren
     if selected_terms is None:
@@ -447,7 +444,7 @@ def generate_map(festival_lat, festival_lon, radius_km=40, route_radius_km=2, se
                     'lat': store_row.geometry.y,
                     'lng': store_row.geometry.x
                 }
-                found_markets_data.append(market_export_data)
+                session['found_markets_data'].append(market_export_data)
         
         # Karte als HTML-String zurückgeben
         map_html = m._repr_html_()
@@ -602,14 +599,15 @@ def api_stats():
 @app.route('/api/export_markets')
 def export_markets():
     """API-Endpunkt für Excel-Export der gefundenen Märkte."""
-    global found_markets_data
+    from flask import session
     
-    if not found_markets_data:
+    data = session.get('found_markets_data', [])
+    if not data:
         return jsonify({"error": "Keine Märkte zum Exportieren verfügbar. Erstellen Sie zuerst eine Karte."}), 400
     
     try:
         # DataFrame aus den gesammelten Daten erstellen
-        df = pd.DataFrame(found_markets_data)
+        df = pd.DataFrame(data)
         
         # Nur die gewünschten Spalten für den Export auswählen
         export_df = df[['name', 'vicinity', 'search_keyword']].copy()
