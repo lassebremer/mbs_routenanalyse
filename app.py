@@ -13,6 +13,10 @@ from shapely.geometry import Point, LineString
 from shapely.ops import transform
 import pyproj
 from io import BytesIO
+from dotenv import load_dotenv
+
+# .env-Datei laden
+load_dotenv()
 
 # Konfiguration importieren
 from config import config
